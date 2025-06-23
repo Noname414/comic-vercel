@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { GenerateComicRequest, GenerateComicResponse, ComicStyle, PanelScript } from "@/types/comic";
 
@@ -80,10 +80,11 @@ async function generatePanelScripts(storyPrompt: string, panelCount: number, sty
     });
 
     const responseText = response.text || "";
-    console.log('📄 腳本生成回應:', responseText);
+    // console.log('📄 腳本生成回應:', responseText);
 
     // 直接解析 JSON 回應，因為使用了 responseSchema 格式化輸出
     const scriptData = JSON.parse(responseText);
+    console.log('📄 腳本生成回應:', scriptData);
     
     if (!scriptData.panels || !Array.isArray(scriptData.panels)) {
       throw new Error("腳本格式無效");
@@ -175,7 +176,7 @@ function createSafePrompt(originalPrompt: string): string {
   return safePrompt;
 }
 
-// 根據已優化的提示詞生成單個分鏡圖片
+// 根據已優化的提示詞生成單個分鏡圖片（使用 Imagen 3）
 async function generatePanelImageWithPrompt(optimizedPrompt: string, script: PanelScript): Promise<string> {
   // 最多重試3次
   const maxRetries = 3;
@@ -184,13 +185,13 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片... (嘗試 ${attempt}/${maxRetries})`);
+      console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片... (嘗試 ${attempt}/${maxRetries}) [Imagen 3]`);
       
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-preview-image-generation",
-        contents: imagePrompt,
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: imagePrompt,
         config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
+          numberOfImages: 1,
         },
       });
       
@@ -199,44 +200,20 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
         throw new Error("API 回應為空");
       }
       
-      if (!response.candidates || response.candidates.length === 0) {
-        throw new Error("API 回應中沒有候選結果");
+      if (!response.generatedImages || response.generatedImages.length === 0) {
+        throw new Error("API 回應中沒有生成的圖片");
       }
       
-      const candidate = response.candidates[0];
-      if (!candidate) {
-        throw new Error("第一個候選結果為空");
+      const generatedImage = response.generatedImages[0];
+      if (!generatedImage || !generatedImage.image || !generatedImage.image.imageBytes) {
+        throw new Error("圖片數據不完整");
       }
       
-      // 檢查是否被安全過濾器阻擋
-      if (!candidate.content) {
-        const safetyReason = candidate.finishReason || "unknown";
-        console.log(`⚠️ 分鏡 ${script.panelNumber} 可能被安全過濾器阻擋 (原因: ${safetyReason})`);
-        
-        if (attempt < maxRetries) {
-          console.log(`🔄 嘗試使用更安全的提示詞重試...`);
-          // 使用更安全的提示詞重試
-          imagePrompt = createSafePrompt(imagePrompt);
-          continue;
-        } else {
-          throw new Error(`內容被安全過濾器阻擋，已重試 ${maxRetries} 次`);
-        }
-      }
+      const imageBytes = generatedImage.image.imageBytes;
+      const dataSize = Math.round(imageBytes.length / 1024); // KB
+      console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB, 嘗試 ${attempt}) [Imagen 3]`);
       
-      if (!candidate.content.parts || candidate.content.parts.length === 0) {
-        throw new Error("候選結果內容中沒有部分");
-      }
-      
-      // 提取生成的圖片數據
-      for (const part of candidate.content.parts) {
-        if (part.inlineData && part.inlineData.data) {
-          const dataSize = Math.round(part.inlineData.data.length / 1024); // KB
-          console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB, 嘗試 ${attempt})`);
-          return part.inlineData.data; // 返回 base64 編碼的圖片
-        }
-      }
-      
-      throw new Error("未能在回應中找到圖片數據");
+      return imageBytes; // 返回 base64 編碼的圖片
       
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -247,9 +224,10 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
         break;
       }
       
-      // 如果是安全過濾問題，使用更安全的提示詞
-      if (lastError.message.includes("候選結果中沒有內容") || 
-          lastError.message.includes("安全過濾")) {
+      // 如果是安全過濾問題或內容政策問題，使用更安全的提示詞
+      if (lastError.message.includes("safety") || 
+          lastError.message.includes("policy") ||
+          lastError.message.includes("content")) {
         console.log(`🔄 使用更安全的提示詞重試...`);
         imagePrompt = createSafePrompt(imagePrompt);
       }
@@ -269,10 +247,10 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
   if (errorMessage.includes("not available") || errorMessage.includes("region")) {
     throw new Error(`圖片生成功能在此地區不可用 (分鏡 ${script.panelNumber})`);
   }
-  if (errorMessage.includes("API key")) {
+  if (errorMessage.includes("API key") || errorMessage.includes("key")) {
     throw new Error(`API Key 無效或未設定 (分鏡 ${script.panelNumber})`);
   }
-  if (errorMessage.includes("安全過濾") || errorMessage.includes("候選結果中沒有內容")) {
+  if (errorMessage.includes("safety") || errorMessage.includes("policy") || errorMessage.includes("content")) {
     throw new Error(`分鏡 ${script.panelNumber} 內容被安全過濾器阻擋，請嘗試修改描述`);
   }
   
