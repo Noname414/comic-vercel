@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ComicStyle, GenerateComicResponse, PanelScript } from '@/types/comic';
 
 // 風格選項
@@ -280,9 +281,11 @@ export default function ComicGenerator() {
                   <div key={index} className="relative group bg-gray-50 rounded-xl p-3 border-2 border-gray-200">
                     {/* 分鏡圖片 */}
                     <div className="aspect-square overflow-hidden rounded-lg bg-white shadow-md mb-3">
-                      <img
+                      <Image
                         src={`data:image/png;base64,${image}`}
                         alt={`漫畫分鏡 ${index + 1}`}
+                        width={400}
+                        height={400}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     </div>
@@ -314,7 +317,7 @@ export default function ComicGenerator() {
                         {script.dialogue && (
                           <div className="text-xs text-blue-600 bg-blue-50 rounded-lg p-2">
                             <p className="font-medium text-blue-800 mb-1">對話：</p>
-                            <p>"{script.dialogue}"</p>
+                            <p>&quot;{script.dialogue}&quot;</p>
                           </div>
                         )}
                         
