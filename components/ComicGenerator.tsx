@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ComicStyle, GenerateComicResponse } from '@/types/comic';
+import { ComicStyle, GenerateComicResponse, PanelScript } from '@/types/comic';
 
 // 風格選項
 const styleOptions: { value: ComicStyle; label: string; emoji: string; desc: string }[] = [
@@ -19,6 +19,7 @@ export default function ComicGenerator() {
   const [panelCount, setPanelCount] = useState(4);
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  const [scripts, setScripts] = useState<PanelScript[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // 將 base64 轉換為 blob 並下載
@@ -85,6 +86,7 @@ export default function ComicGenerator() {
     setLoading(true);
     setError(null);
     setImages([]);
+    setScripts([]);
 
     try {
       const response = await fetch('/api/generate-comic', {
@@ -106,6 +108,7 @@ export default function ComicGenerator() {
       }
 
       setImages(data.images || []);
+      setScripts(data.scripts || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : '發生未知錯誤');
     } finally {
@@ -114,7 +117,7 @@ export default function ComicGenerator() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto">
       {/* 控制面板 */}
       <div className="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/30 p-8 mb-8">
         <div className="flex items-center mb-8">
@@ -129,14 +132,14 @@ export default function ComicGenerator() {
         {/* 描述輸入 */}
         <div className="mb-8">
           <label htmlFor="prompt" className="block text-lg font-semibold text-gray-700 mb-3">
-            💭 描述您的故事
+            💭 描述您的故事概念
           </label>
           <div className="relative">
             <textarea
               id="prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="例如：一個年輕的魔法師在森林中遇到了一隻神秘的獨角獸..."
+              placeholder="例如：一個年輕的魔法師在森林中遇到了一隻神秘的獨角獸，他們必須一起解決一個古老的謎題..."
               className="w-full px-6 py-4 bg-white/70 backdrop-blur-sm border-2 border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-300 resize-none text-gray-700 placeholder-gray-500 transition-all duration-300 shadow-lg"
               rows={4}
             />
@@ -144,6 +147,9 @@ export default function ComicGenerator() {
               {prompt.length}/500
             </div>
           </div>
+          <p className="text-sm text-gray-600 mt-2">
+            💡 AI 會先為您的故事創作分鏡腳本，然後生成對應的圖片
+          </p>
         </div>
 
         {/* 風格選擇 */}
@@ -220,7 +226,7 @@ export default function ComicGenerator() {
           ) : (
             <span className="flex items-center justify-center">
               <span className="mr-2">🚀</span>
-              開始生成漫畫
+              開始創作漫畫
             </span>
           )}
         </button>
@@ -239,13 +245,13 @@ export default function ComicGenerator() {
       {/* 圖片展示區域 */}
       {images.length > 0 && (
         <div className="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/30 p-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3">
                 <span className="text-xl">🎭</span>
               </div>
               <h3 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                生成結果
+                您的漫畫作品
               </h3>
             </div>
             
@@ -259,51 +265,83 @@ export default function ComicGenerator() {
             </button>
           </div>
           
-          <div className={`grid gap-6 ${
-            panelCount === 2 ? 'grid-cols-1 md:grid-cols-2' :
-            panelCount === 3 ? 'grid-cols-1 md:grid-cols-3' :
-            panelCount === 4 ? 'grid-cols-2' :
-            panelCount === 5 ? 'grid-cols-2 md:grid-cols-3' :
-            'grid-cols-2 md:grid-cols-3'
-          }`}>
-            {images.map((image, index) => (
-              <div key={index} className="relative group">
-                <div className="aspect-square overflow-hidden rounded-2xl border-3 border-white/50 bg-gradient-to-br from-gray-100 to-gray-200 shadow-xl">
-                  <img
-                    src={`data:image/png;base64,${image}`}
-                    alt={`漫畫分鏡 ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-                </div>
-                <div className="absolute -top-3 -left-3 w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-sm">{index + 1}</span>
-                </div>
-                
-                {/* 單張下載按鈕 */}
-                <button
-                  onClick={() => handleDownloadSingle(image, index)}
-                  className="absolute top-2 right-2 w-10 h-10 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 text-white"
-                  title={`下載分鏡 ${index + 1}`}
-                >
-                  <span className="text-lg">💾</span>
-                </button>
-                
-                {/* 懸浮效果 */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-2xl transition-all duration-300"></div>
-              </div>
-            ))}
+          {/* 漫畫頁面布局 */}
+          <div className="bg-white rounded-2xl p-6 shadow-xl mb-6">
+            <div className={`grid gap-4 ${
+              panelCount === 2 ? 'grid-cols-1 md:grid-cols-2' :
+              panelCount === 3 ? 'grid-cols-1 md:grid-cols-3' :
+              panelCount === 4 ? 'grid-cols-2' :
+              panelCount === 5 ? 'grid-cols-2 md:grid-cols-3' :
+              'grid-cols-2 md:grid-cols-3'
+            }`}>
+              {images.map((image, index) => {
+                const script = scripts[index];
+                return (
+                  <div key={index} className="relative group bg-gray-50 rounded-xl p-3 border-2 border-gray-200">
+                    {/* 分鏡圖片 */}
+                    <div className="aspect-square overflow-hidden rounded-lg bg-white shadow-md mb-3">
+                      <img
+                        src={`data:image/png;base64,${image}`}
+                        alt={`漫畫分鏡 ${index + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                    
+                    {/* 分鏡編號 */}
+                    <div className="absolute top-1 left-1 w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white font-bold text-sm">{index + 1}</span>
+                    </div>
+                    
+                    {/* 下載按鈕 */}
+                    <button
+                      onClick={() => handleDownloadSingle(image, index)}
+                      className="absolute top-1 right-1 w-8 h-8 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 text-white"
+                      title={`下載分鏡 ${index + 1}`}
+                    >
+                      <span className="text-sm">💾</span>
+                    </button>
+                    
+                    {/* 腳本內容 */}
+                    {script && (
+                      <div className="space-y-2">
+                        {/* 場景描述 */}
+                        <div className="text-xs text-gray-600 bg-gray-100 rounded-lg p-2">
+                          <p className="font-medium text-gray-800 mb-1">場景：</p>
+                          <p>{script.description}</p>
+                        </div>
+                        
+                        {/* 對話內容 */}
+                        {script.dialogue && (
+                          <div className="text-xs text-blue-600 bg-blue-50 rounded-lg p-2">
+                            <p className="font-medium text-blue-800 mb-1">對話：</p>
+                            <p>"{script.dialogue}"</p>
+                          </div>
+                        )}
+                        
+                        {/* 情緒氛圍 */}
+                        <div className="flex items-center justify-center">
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                            {script.mood}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* 下載提示 */}
-          <div className="mt-6 p-4 bg-blue-50/80 backdrop-blur-sm border-2 border-blue-200 rounded-2xl">
+          <div className="p-4 bg-blue-50/80 backdrop-blur-sm border-2 border-blue-200 rounded-2xl">
             <div className="flex items-start">
               <span className="text-blue-500 mr-2 mt-0.5">💡</span>
               <div className="text-blue-700">
-                <p className="font-medium mb-1">下載說明：</p>
+                <p className="font-medium mb-1">您的漫畫已完成！</p>
                 <ul className="text-sm space-y-1">
+                  <li>• 每個分鏡都包含 AI 生成的詳細腳本</li>
                   <li>• 點擊右上角的 💾 圖標可下載單張圖片</li>
                   <li>• 點擊「下載全部」可批量下載所有分鏡</li>
-                  <li>• 下載的檔案會自動命名，包含分鏡編號和風格</li>
                 </ul>
               </div>
             </div>
@@ -322,6 +360,19 @@ export default function ComicGenerator() {
               AI 正在創作中...
             </h3>
           </div>
+          
+          {/* 創作步驟指示 */}
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center text-gray-700">
+              <span className="mr-3 text-lg">📝</span>
+              <span>第一步：生成分鏡腳本...</span>
+            </div>
+            <div className="flex items-center text-gray-500">
+              <span className="mr-3 text-lg">🎨</span>
+              <span>第二步：根據腳本繪製分鏡...</span>
+            </div>
+          </div>
+          
           <div className={`grid gap-6 ${
             panelCount === 2 ? 'grid-cols-1 md:grid-cols-2' :
             panelCount === 3 ? 'grid-cols-1 md:grid-cols-3' :
@@ -334,7 +385,7 @@ export default function ComicGenerator() {
                 <div className="aspect-square rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 animate-pulse shadow-lg">
                   <div className="w-full h-full flex items-center justify-center">
                     <div className={`text-4xl animate-bounce ${index === 1 ? 'delay-200' : index === 2 ? 'delay-500' : index === 3 ? 'delay-700' : index === 4 ? 'delay-1000' : ''}`}>
-                      {['🎨', '✨', '🚀', '🎭', '🌟', '💫'][index]}
+                      {['📝', '🎨', '✨', '🎭', '🌟', '💫'][index]}
                     </div>
                   </div>
                 </div>

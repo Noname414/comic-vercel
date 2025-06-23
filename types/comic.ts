@@ -7,6 +7,14 @@ export type ComicStyle =
   | 'realistic' // 寫實風格
   | 'watercolor'; // 水彩風格
 
+// 單個分鏡腳本
+export interface PanelScript {
+  panelNumber: number;
+  description: string;
+  dialogue?: string;
+  mood: string;
+}
+
 // 生成請求的介面
 export interface GenerateComicRequest {
   prompt: string;
@@ -17,6 +25,7 @@ export interface GenerateComicRequest {
 // 生成回應的介面
 export interface GenerateComicResponse {
   images: string[]; // Base64 編碼的圖片陣列
+  scripts: PanelScript[]; // 每格的腳本
   message?: string;
   error?: string;
 }
@@ -25,5 +34,5 @@ export interface GenerateComicResponse {
 export interface ComicPanel {
   id: string;
   imageData: string;
-  prompt: string;
+  script: PanelScript;
 } 
