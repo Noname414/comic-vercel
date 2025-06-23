@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { GenerateComicRequest, GenerateComicResponse, ComicStyle, PanelScript } from "@/types/comic";
 
@@ -28,41 +28,62 @@ async function generatePanelScripts(storyPrompt: string, panelCount: number, sty
 風格: ${style}
 分鏡數量: ${panelCount} 格
 
+重要提醒：
+- 避免過度描述暴力、武器、傷口等內容
+- 可以用「歷練的痕跡」代替「傷疤」
+- 可以用「古老的器物」代替「武器」
+- 可以用「紅色印記」代替「血跡」
+- 可以用「古老遺跡」代替「廢墟」
+- 注重情感表達而非視覺衝擊
+
 請為每一格提供：
-1. 場景描述 (詳細的視覺元素)
+1. 場景描述 (詳細的視覺元素，但避免過於激烈的描述)
 2. 對話內容 (如果有的話)
-3. 情緒氛圍 (如緊張、歡樂、神秘等)
+3. 情緒氛圍 (如堅定、希望、思考等正面情緒)
 
-請以 JSON 格式回應，格式如下：
-{
-  "panels": [
-    {
-      "panelNumber": 1,
-      "description": "詳細的場景和角色描述，包含環境、角色動作、表情等",
-      "dialogue": "角色對話內容（可選）",
-      "mood": "這格的情緒氛圍"
-    }
-  ]
-}
-
-確保每格都有連貫的故事情節，並且適合 ${style} 風格的視覺表現。`;
+確保每格都有連貫的故事情節，並且適合 ${style} 風格的視覺表現。內容應該積極正面，適合所有年齡層觀看。`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: scriptPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            panels: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  panelNumber: {
+                    type: Type.NUMBER,
+                  },
+                  description: {
+                    type: Type.STRING,
+                  },
+                  dialogue: {
+                    type: Type.STRING,
+                  },
+                  mood: {
+                    type: Type.STRING,
+                  },
+                },
+                propertyOrdering: ["panelNumber", "description", "dialogue", "mood"],
+              },
+            },
+          },
+          propertyOrdering: ["panels"],
+        },
+      },
     });
 
     const responseText = response.text || "";
     console.log('📄 腳本生成回應:', responseText);
 
-    // 嘗試解析 JSON 回應
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("無法從回應中提取 JSON 格式的腳本");
-    }
-
-    const scriptData = JSON.parse(jsonMatch[0]);
+    // 直接解析 JSON 回應，因為使用了 responseSchema 格式化輸出
+    const scriptData = JSON.parse(responseText);
     
     if (!scriptData.panels || !Array.isArray(scriptData.panels)) {
       throw new Error("腳本格式無效");
@@ -137,72 +158,127 @@ ${basicPrompt}
   }
 }
 
+// 創建安全友好的提示詞
+function createSafePrompt(originalPrompt: string): string {
+  const safePrompt = originalPrompt
+    .replace(/刀疤|傷痕|疤痕/g, '歷練的痕跡')
+    .replace(/斷劍|破劍|劍刃|武器/g, '古老的器物')
+    .replace(/血跡|血|鮮血/g, '紅色印記')
+    .replace(/戰火|戰爭|戰鬥/g, '歷史事件')
+    .replace(/廢墟|破壞|摧毀/g, '古老遺跡')
+    .replace(/死亡|死去|屍體/g, '沉睡')
+    .replace(/暴力|攻擊|殺戮/g, '決心')
+    .replace(/憤怒|憤恨|怒火/g, '堅定')
+    .replace(/痛苦|折磨|煎熬/g, '思考')
+    .replace(/復仇|報復|仇恨/g, '正義');
+  
+  return safePrompt;
+}
+
 // 根據腳本生成單個分鏡圖片
 async function generatePanelImage(script: PanelScript, style: ComicStyle): Promise<string> {
   // 使用 LLM 優化圖片生成提示詞
-  const imagePrompt = await optimizeImagePrompt(script, style);
+  let imagePrompt = await optimizeImagePrompt(script, style);
+  
+  // 最多重試3次
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-  try {
-    console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片...`);
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-preview-image-generation",
-      contents: imagePrompt,
-      config: {
-        responseModalities: [Modality.TEXT, Modality.IMAGE],
-      },
-    });
-    
-    // 檢查回應結構
-    if (!response) {
-      throw new Error("API 回應為空");
-    }
-    
-    if (!response.candidates || response.candidates.length === 0) {
-      throw new Error("API 回應中沒有候選結果");
-    }
-    
-    const candidate = response.candidates[0];
-    if (!candidate) {
-      throw new Error("第一個候選結果為空");
-    }
-    
-    if (!candidate.content) {
-      throw new Error("候選結果中沒有內容");
-    }
-    
-    if (!candidate.content.parts || candidate.content.parts.length === 0) {
-      throw new Error("候選結果內容中沒有部分");
-    }
-    
-    // 提取生成的圖片數據
-    for (const part of candidate.content.parts) {
-      if (part.inlineData && part.inlineData.data) {
-        const dataSize = Math.round(part.inlineData.data.length / 1024); // KB
-        console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB)`);
-        return part.inlineData.data; // 返回 base64 編碼的圖片
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片... (嘗試 ${attempt}/${maxRetries})`);
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-preview-image-generation",
+        contents: imagePrompt,
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      });
+      
+      // 檢查回應結構
+      if (!response) {
+        throw new Error("API 回應為空");
       }
+      
+      if (!response.candidates || response.candidates.length === 0) {
+        throw new Error("API 回應中沒有候選結果");
+      }
+      
+      const candidate = response.candidates[0];
+      if (!candidate) {
+        throw new Error("第一個候選結果為空");
+      }
+      
+      // 檢查是否被安全過濾器阻擋
+      if (!candidate.content) {
+        const safetyReason = candidate.finishReason || "unknown";
+        console.log(`⚠️ 分鏡 ${script.panelNumber} 可能被安全過濾器阻擋 (原因: ${safetyReason})`);
+        
+        if (attempt < maxRetries) {
+          console.log(`🔄 嘗試使用更安全的提示詞重試...`);
+          // 使用更安全的提示詞重試
+          imagePrompt = createSafePrompt(imagePrompt);
+          continue;
+        } else {
+          throw new Error(`內容被安全過濾器阻擋，已重試 ${maxRetries} 次`);
+        }
+      }
+      
+      if (!candidate.content.parts || candidate.content.parts.length === 0) {
+        throw new Error("候選結果內容中沒有部分");
+      }
+      
+      // 提取生成的圖片數據
+      for (const part of candidate.content.parts) {
+        if (part.inlineData && part.inlineData.data) {
+          const dataSize = Math.round(part.inlineData.data.length / 1024); // KB
+          console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB, 嘗試 ${attempt})`);
+          return part.inlineData.data; // 返回 base64 編碼的圖片
+        }
+      }
+      
+      throw new Error("未能在回應中找到圖片數據");
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`❌ 分鏡 ${script.panelNumber} 第 ${attempt} 次嘗試失敗:`, lastError.message);
+      
+      // 如果是最後一次嘗試，不再重試
+      if (attempt === maxRetries) {
+        break;
+      }
+      
+      // 如果是安全過濾問題，使用更安全的提示詞
+      if (lastError.message.includes("候選結果中沒有內容") || 
+          lastError.message.includes("安全過濾")) {
+        console.log(`🔄 使用更安全的提示詞重試...`);
+        imagePrompt = createSafePrompt(imagePrompt);
+      }
+      
+      // 等待1秒後重試
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
-    throw new Error("未能在回應中找到圖片數據");
-  } catch (error) {
-    console.error(`❌ 生成分鏡 ${script.panelNumber} 圖片失敗:`, error instanceof Error ? error.message : error);
-    
-    // 如果是網路或 API 配額問題，拋出更具體的錯誤
-    if (error instanceof Error) {
-      if (error.message.includes("quota") || error.message.includes("limit")) {
-        throw new Error(`API 配額不足或達到限制 (分鏡 ${script.panelNumber})`);
-      }
-      if (error.message.includes("not available") || error.message.includes("region")) {
-        throw new Error(`圖片生成功能在此地區不可用 (分鏡 ${script.panelNumber})`);
-      }
-      if (error.message.includes("API key")) {
-        throw new Error(`API Key 無效或未設定 (分鏡 ${script.panelNumber})`);
-      }
-    }
-    
-    throw new Error(`生成分鏡 ${script.panelNumber} 圖片失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
   }
+
+  // 所有重試都失敗了
+  const errorMessage = lastError?.message || "未知錯誤";
+  
+  // 提供更具體的錯誤信息
+  if (errorMessage.includes("quota") || errorMessage.includes("limit")) {
+    throw new Error(`API 配額不足或達到限制 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("not available") || errorMessage.includes("region")) {
+    throw new Error(`圖片生成功能在此地區不可用 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("API key")) {
+    throw new Error(`API Key 無效或未設定 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("安全過濾") || errorMessage.includes("候選結果中沒有內容")) {
+    throw new Error(`分鏡 ${script.panelNumber} 內容被安全過濾器阻擋，請嘗試修改描述`);
+  }
+  
+  throw new Error(`生成分鏡 ${script.panelNumber} 圖片失敗: ${errorMessage}`);
 }
 
 export async function POST(request: NextRequest) {
