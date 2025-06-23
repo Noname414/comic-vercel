@@ -316,29 +316,54 @@ export async function POST(request: NextRequest) {
     // 第一步：生成分鏡腳本
     const scripts = await generatePanelScripts(prompt, panelCount, style);
     
-    console.log(`🚀 開始根據腳本生成 ${scripts.length} 張圖片...`);
+    console.log(`🚀 開始並行生成 ${scripts.length} 張圖片...`);
 
-    // 第二步：根據腳本生成圖片
-    const images: string[] = [];
-    for (const script of scripts) {
-      try {
-        const image = await generatePanelImage(script, style);
-        images.push(image);
-      } catch (error) {
-        console.error(`❌ 生成分鏡 ${script.panelNumber} 失敗:`, error instanceof Error ? error.message : error);
-        throw error; // 重新拋出錯誤以停止整個流程
+    // 第二步：並行生成所有圖片
+    try {
+      const imagePromises = scripts.map(async (script, index) => {
+        try {
+          console.log(`🎨 開始生成分鏡 ${script.panelNumber} (並行處理 ${index + 1}/${scripts.length})`);
+          const image = await generatePanelImage(script, style);
+          console.log(`✅ 分鏡 ${script.panelNumber} 並行生成完成`);
+          return { index: script.panelNumber - 1, image, success: true as const };
+        } catch (error) {
+          console.error(`❌ 並行生成分鏡 ${script.panelNumber} 失敗:`, error instanceof Error ? error.message : error);
+          return { index: script.panelNumber - 1, error: error instanceof Error ? error.message : String(error), success: false as const };
+        }
+      });
+
+      const results = await Promise.all(imagePromises);
+      
+      // 檢查是否有任何失敗的圖片生成
+      const failedResults = results.filter(result => !result.success);
+      if (failedResults.length > 0) {
+        const errorMessage = `生成失敗的分鏡: ${failedResults.map(r => `分鏡${r.index + 1}(${r.error})`).join(', ')}`;
+        console.error(`❌ 部分圖片生成失敗: ${errorMessage}`);
+        throw new Error(errorMessage);
       }
+
+      // 按順序排列圖片
+      const images: string[] = new Array(scripts.length);
+      results.forEach(result => {
+        if (result.success) {
+          images[result.index] = result.image;
+        }
+      });
+
+      console.log(`🎉 並行漫畫創作完成！總共生成 ${images.length} 張圖片`);
+
+      const response: GenerateComicResponse = {
+        images,
+        scripts,
+        message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本 (並行處理)`
+      };
+
+      return NextResponse.json(response);
+
+    } catch (error) {
+      console.error("❌ 並行生成圖片失敗:", error instanceof Error ? error.message : error);
+      throw error;
     }
-
-    console.log(`🎉 漫畫創作完成！`);
-
-    const response: GenerateComicResponse = {
-      images,
-      scripts,
-      message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本`
-    };
-
-    return NextResponse.json(response);
 
   } catch (error) {
     console.error("❌ 創作漫畫時發生錯誤:", error instanceof Error ? error.message : error);
