@@ -175,6 +175,110 @@ function createSafePrompt(originalPrompt: string): string {
   return safePrompt;
 }
 
+// 根據已優化的提示詞生成單個分鏡圖片
+async function generatePanelImageWithPrompt(optimizedPrompt: string, script: PanelScript): Promise<string> {
+  // 最多重試3次
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+  let imagePrompt = optimizedPrompt;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片... (嘗試 ${attempt}/${maxRetries})`);
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-preview-image-generation",
+        contents: imagePrompt,
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
+      });
+      
+      // 檢查回應結構
+      if (!response) {
+        throw new Error("API 回應為空");
+      }
+      
+      if (!response.candidates || response.candidates.length === 0) {
+        throw new Error("API 回應中沒有候選結果");
+      }
+      
+      const candidate = response.candidates[0];
+      if (!candidate) {
+        throw new Error("第一個候選結果為空");
+      }
+      
+      // 檢查是否被安全過濾器阻擋
+      if (!candidate.content) {
+        const safetyReason = candidate.finishReason || "unknown";
+        console.log(`⚠️ 分鏡 ${script.panelNumber} 可能被安全過濾器阻擋 (原因: ${safetyReason})`);
+        
+        if (attempt < maxRetries) {
+          console.log(`🔄 嘗試使用更安全的提示詞重試...`);
+          // 使用更安全的提示詞重試
+          imagePrompt = createSafePrompt(imagePrompt);
+          continue;
+        } else {
+          throw new Error(`內容被安全過濾器阻擋，已重試 ${maxRetries} 次`);
+        }
+      }
+      
+      if (!candidate.content.parts || candidate.content.parts.length === 0) {
+        throw new Error("候選結果內容中沒有部分");
+      }
+      
+      // 提取生成的圖片數據
+      for (const part of candidate.content.parts) {
+        if (part.inlineData && part.inlineData.data) {
+          const dataSize = Math.round(part.inlineData.data.length / 1024); // KB
+          console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB, 嘗試 ${attempt})`);
+          return part.inlineData.data; // 返回 base64 編碼的圖片
+        }
+      }
+      
+      throw new Error("未能在回應中找到圖片數據");
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`❌ 分鏡 ${script.panelNumber} 第 ${attempt} 次嘗試失敗:`, lastError.message);
+      
+      // 如果是最後一次嘗試，不再重試
+      if (attempt === maxRetries) {
+        break;
+      }
+      
+      // 如果是安全過濾問題，使用更安全的提示詞
+      if (lastError.message.includes("候選結果中沒有內容") || 
+          lastError.message.includes("安全過濾")) {
+        console.log(`🔄 使用更安全的提示詞重試...`);
+        imagePrompt = createSafePrompt(imagePrompt);
+      }
+      
+      // 等待1秒後重試
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  // 所有重試都失敗了
+  const errorMessage = lastError?.message || "未知錯誤";
+  
+  // 提供更具體的錯誤信息
+  if (errorMessage.includes("quota") || errorMessage.includes("limit")) {
+    throw new Error(`API 配額不足或達到限制 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("not available") || errorMessage.includes("region")) {
+    throw new Error(`圖片生成功能在此地區不可用 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("API key")) {
+    throw new Error(`API Key 無效或未設定 (分鏡 ${script.panelNumber})`);
+  }
+  if (errorMessage.includes("安全過濾") || errorMessage.includes("候選結果中沒有內容")) {
+    throw new Error(`分鏡 ${script.panelNumber} 內容被安全過濾器阻擋，請嘗試修改描述`);
+  }
+  
+  throw new Error(`生成分鏡 ${script.panelNumber} 圖片失敗: ${errorMessage}`);
+}
+
 // 根據腳本生成單個分鏡圖片
 async function generatePanelImage(script: PanelScript, style: ComicStyle): Promise<string> {
   // 使用 LLM 優化圖片生成提示詞
@@ -320,10 +424,23 @@ export async function POST(request: NextRequest) {
 
     // 第二步：並行生成所有圖片
     try {
-      const imagePromises = scripts.map(async (script, index) => {
+      // 首先並行優化所有提示詞
+      console.log(`🔧 開始並行優化所有提示詞...`);
+      const promptPromises = scripts.map(async (script, index) => {
+        console.log(`🔧 正在優化分鏡 ${script.panelNumber} 的提示詞... (並行 ${index + 1}/${scripts.length})`);
+        const optimizedPrompt = await optimizeImagePrompt(script, style);
+        console.log(`✅ 分鏡 ${script.panelNumber} 提示詞優化完成`);
+        return { script, optimizedPrompt };
+      });
+
+      const optimizedPrompts = await Promise.all(promptPromises);
+      console.log(`✅ 所有提示詞優化完成，開始並行生成圖片...`);
+
+      // 然後並行生成所有圖片
+      const imagePromises = optimizedPrompts.map(async ({ script, optimizedPrompt }, index) => {
         try {
           console.log(`🎨 開始生成分鏡 ${script.panelNumber} (並行處理 ${index + 1}/${scripts.length})`);
-          const image = await generatePanelImage(script, style);
+          const image = await generatePanelImageWithPrompt(optimizedPrompt, script);
           console.log(`✅ 分鏡 ${script.panelNumber} 並行生成完成`);
           return { index: script.panelNumber - 1, image, success: true as const };
         } catch (error) {
@@ -355,7 +472,7 @@ export async function POST(request: NextRequest) {
       const response: GenerateComicResponse = {
         images,
         scripts,
-        message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本 (並行處理)`
+        message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本 (優化並行處理)`
       };
 
       return NextResponse.json(response);
