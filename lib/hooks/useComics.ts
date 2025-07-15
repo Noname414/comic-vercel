@@ -136,7 +136,7 @@ const fetcher = async (): Promise<Comic[]> => {
 };
 
 export const useComics = () => {
-    const [initialData, setInitialData] = useState<Comic[] | null>(null);
+    const [initialData, setInitialData] = useState<Comic[]>([]);
     const [hasInitialized, setHasInitialized] = useState(false);
 
     // 在客戶端初始化時檢查緩存
@@ -223,7 +223,7 @@ export const useComics = () => {
 
     return {
         comics: data || [],
-        loading: isLoading && !initialData,
+        loading: isLoading && initialData.length === 0,
         error,
         stats,
         refreshComics,
@@ -231,6 +231,6 @@ export const useComics = () => {
         getComicById,
         // 輔助函數
         isValidImageUrl,
-        hasCache: !!initialData,
+        hasCache: initialData.length > 0,
     };
 }; 
