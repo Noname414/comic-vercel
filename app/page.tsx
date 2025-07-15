@@ -1,8 +1,13 @@
 import ComicGenerator from '@/components/ComicGenerator';
+import Navigation from '@/components/Navigation';
+
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-cyan-100 relative overflow-hidden">
+      {/* 導航 */}
+      <Navigation />
+
       {/* 背景裝飾元素 */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
