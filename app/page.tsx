@@ -1,4 +1,5 @@
 import ComicGenerator from '@/components/ComicGenerator';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -14,8 +15,8 @@ export default function Home() {
         {/* 網站標題區域 */}
         <header className="text-center mb-16">
           <nav className="flex justify-center gap-8 mb-8">
-            <a href="/" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Home</a>
-            <a href="/gallery" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Gallery</a>
+            <Link href="/" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Home</Link>
+            <Link href="/gallery" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Gallery</Link>
           </nav>
           <div className="inline-block mb-6">
             <div className="relative">
