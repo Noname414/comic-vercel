@@ -28,23 +28,23 @@ const config: Config = {
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%': { 
+          '0%': {
             opacity: '0',
-            transform: 'translateY(10px)' 
+            transform: 'translateY(10px)'
           },
-          '100%': { 
+          '100%': {
             opacity: '1',
-            transform: 'translateY(0)' 
+            transform: 'translateY(0)'
           },
         },
         scaleIn: {
-          '0%': { 
+          '0%': {
             opacity: '0',
-            transform: 'scale(0.95)' 
+            transform: 'scale(0.95)'
           },
-          '100%': { 
+          '100%': {
             opacity: '1',
-            transform: 'scale(1)' 
+            transform: 'scale(1)'
           },
         },
       },
@@ -58,11 +58,11 @@ const config: Config = {
       backdropBlur: {
         xs: '2px',
       },
-      
+
     },
   },
   plugins: [
-    function({ addUtilities }: any) {
+    function ({ addUtilities }: any) {
       const newUtilities = {
         '.delay-200': {
           'animation-delay': '200ms',
@@ -75,6 +75,12 @@ const config: Config = {
         },
         '.delay-1000': {
           'animation-delay': '1000ms',
+        },
+        '.line-clamp-3': {
+          'overflow': 'hidden',
+          'display': '-webkit-box',
+          '-webkit-box-orient': 'vertical',
+          '-webkit-line-clamp': '3',
         },
       }
       addUtilities(newUtilities)

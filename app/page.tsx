@@ -14,9 +14,25 @@ export default function Home() {
       <div className="relative z-10 container mx-auto py-12 px-4">
         {/* 網站標題區域 */}
         <header className="text-center mb-16">
-          <nav className="flex justify-center gap-8 mb-8">
-            <Link href="/" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Home</Link>
-            <Link href="/gallery" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Gallery</Link>
+          <nav className="flex justify-center gap-4 mb-8">
+            <Link
+              href="/"
+              className="flex items-center px-6 py-3 bg-white/30 backdrop-blur-lg rounded-2xl shadow-lg border border-white/40 text-gray-700 font-medium hover:bg-white/40 transition-all duration-300"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              首頁
+            </Link>
+            <Link
+              href="/gallery"
+              className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl shadow-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              瀏覽畫廊
+            </Link>
           </nav>
           <div className="inline-block mb-6">
             <div className="relative">
@@ -26,11 +42,11 @@ export default function Home() {
               <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 rounded-lg blur opacity-20"></div>
             </div>
           </div>
-          
+
           <p className="text-xl md:text-2xl text-gray-700 max-w-4xl mx-auto mb-8 leading-relaxed">
             使用 <span className="font-semibold text-purple-600">Gemini AI</span> 將您的想法轉換成精美的漫畫分鏡
           </p>
-          
+
           <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-600">
             <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm">
               <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>

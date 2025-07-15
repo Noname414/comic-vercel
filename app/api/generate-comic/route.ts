@@ -22,7 +22,7 @@ function getStylePrompt(style: ComicStyle): string {
 // 生成分鏡腳本
 async function generatePanelScripts(storyPrompt: string, panelCount: number, style: ComicStyle): Promise<PanelScript[]> {
   console.log(`📝 開始生成 ${panelCount} 格分鏡腳本...`);
-  
+
   const scriptPrompt = `你是一位專業的漫畫編劇。請根據以下故事概念，創作一個 ${panelCount} 格的漫畫分鏡腳本。
 
 故事概念: ${storyPrompt}
@@ -86,7 +86,7 @@ async function generatePanelScripts(storyPrompt: string, panelCount: number, sty
     // 直接解析 JSON 回應，因為使用了 responseSchema 格式化輸出
     const scriptData = JSON.parse(responseText);
     console.log('📄 腳本生成回應:', scriptData);
-    
+
     if (!scriptData.panels || !Array.isArray(scriptData.panels)) {
       throw new Error("腳本格式無效");
     }
@@ -96,7 +96,7 @@ async function generatePanelScripts(storyPrompt: string, panelCount: number, sty
 
   } catch (error) {
     console.error(`❌ 生成腳本失敗:`, error);
-    
+
     // 如果腳本生成失敗，創建簡單的備用腳本
     console.log('🔄 使用備用腳本生成方式...');
     const fallbackScripts: PanelScript[] = [];
@@ -115,14 +115,14 @@ async function generatePanelScripts(storyPrompt: string, panelCount: number, sty
 // 使用 LLM 優化圖片生成提示詞
 async function optimizeImagePrompt(script: PanelScript, style: ComicStyle): Promise<string> {
   const stylePrompt = getStylePrompt(style);
-  
+
   // 構建基礎提示
   let basicPrompt = `Comic panel ${script.panelNumber}: ${script.description}`;
-  
+
   if (script.dialogue) {
     basicPrompt += `. Characters saying: "${script.dialogue}"`;
   }
-  
+
   basicPrompt += `. Mood: ${script.mood}. Style: ${stylePrompt}`;
 
   const optimizationPrompt = `你是一位專業的 AI 圖片生成提示詞專家。請將以下漫畫分鏡描述優化成適合圖片生成模型理解的詳細 prompt。
@@ -141,7 +141,7 @@ ${basicPrompt}
 
   try {
     console.log(`🔧 正在優化分鏡 ${script.panelNumber} 的提示詞...`);
-    
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: optimizationPrompt,
@@ -150,7 +150,7 @@ ${basicPrompt}
     const optimizedPrompt = response.text?.trim() || basicPrompt;
     console.log(`✅ 分鏡 ${script.panelNumber} 提示詞優化完成`);
     console.log(`📝 優化後提示詞: ${optimizedPrompt.substring(0, 100)}...`);
-    
+
     return optimizedPrompt;
 
   } catch (error) {
@@ -173,7 +173,7 @@ function createSafePrompt(originalPrompt: string): string {
     .replace(/憤怒|憤恨|怒火/g, '堅定')
     .replace(/痛苦|折磨|煎熬/g, '思考')
     .replace(/復仇|報復|仇恨/g, '正義');
-  
+
   return safePrompt;
 }
 
@@ -187,7 +187,7 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`🎨 開始生成分鏡 ${script.panelNumber} 圖片... (嘗試 ${attempt}/${maxRetries}) [Imagen 3]`);
-      
+
       const response = await ai.models.generateImages({
         model: 'imagen-3.0-generate-002',
         prompt: imagePrompt,
@@ -195,44 +195,44 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
           numberOfImages: 1,
         },
       });
-      
+
       // 檢查回應結構
       if (!response) {
         throw new Error("API 回應為空");
       }
-      
+
       if (!response.generatedImages || response.generatedImages.length === 0) {
         throw new Error("API 回應中沒有生成的圖片");
       }
-      
+
       const generatedImage = response.generatedImages[0];
       if (!generatedImage || !generatedImage.image || !generatedImage.image.imageBytes) {
         throw new Error("圖片數據不完整");
       }
-      
+
       const imageBytes = generatedImage.image.imageBytes;
       const dataSize = Math.round(imageBytes.length / 1024); // KB
       console.log(`✅ 分鏡 ${script.panelNumber} 生成成功 (${dataSize}KB, 嘗試 ${attempt}) [Imagen 3]`);
-      
+
       return imageBytes; // 返回 base64 編碼的圖片
-      
+
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.error(`❌ 分鏡 ${script.panelNumber} 第 ${attempt} 次嘗試失敗:`, lastError.message);
-      
+
       // 如果是最後一次嘗試，不再重試
       if (attempt === maxRetries) {
         break;
       }
-      
+
       // 如果是安全過濾問題或內容政策問題，使用更安全的提示詞
-      if (lastError.message.includes("safety") || 
-          lastError.message.includes("policy") ||
-          lastError.message.includes("content")) {
+      if (lastError.message.includes("safety") ||
+        lastError.message.includes("policy") ||
+        lastError.message.includes("content")) {
         console.log(`🔄 使用更安全的提示詞重試...`);
         imagePrompt = createSafePrompt(imagePrompt);
       }
-      
+
       // 等待1秒後重試
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -240,7 +240,7 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
 
   // 所有重試都失敗了
   const errorMessage = lastError?.message || "未知錯誤";
-  
+
   // 提供更具體的錯誤信息
   if (errorMessage.includes("quota") || errorMessage.includes("limit")) {
     throw new Error(`API 配額不足或達到限制 (分鏡 ${script.panelNumber})`);
@@ -254,10 +254,125 @@ async function generatePanelImageWithPrompt(optimizedPrompt: string, script: Pan
   if (errorMessage.includes("safety") || errorMessage.includes("policy") || errorMessage.includes("content")) {
     throw new Error(`分鏡 ${script.panelNumber} 內容被安全過濾器阻擋，請嘗試修改描述`);
   }
-  
+
   throw new Error(`生成分鏡 ${script.panelNumber} 圖片失敗: ${errorMessage}`);
 }
 
+// 將 base64 圖片上傳到 Supabase Storage
+async function uploadImageToStorage(base64Image: string, comicId: number, panelNumber: number): Promise<string> {
+  try {
+    // 將 base64 轉換為 Buffer
+    const buffer = Buffer.from(base64Image, 'base64');
+
+    // 生成唯一的文件名
+    const fileName = `comic-${comicId}-panel-${panelNumber}-${Date.now()}.png`;
+    const filePath = `panels/${fileName}`;
+
+    // 上傳到 Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('comic-images')
+      .upload(filePath, buffer, {
+        contentType: 'image/png',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('上傳圖片失敗:', error);
+      throw error;
+    }
+
+    // 獲取公共 URL
+    const { data: publicData } = supabase.storage
+      .from('comic-images')
+      .getPublicUrl(filePath);
+
+    console.log(`✅ 圖片上傳成功: ${publicData.publicUrl}`);
+    return publicData.publicUrl;
+
+  } catch (error) {
+    console.error('上傳圖片到 Storage 失敗:', error);
+    throw error;
+  }
+}
+
+// 將漫畫數據存儲到數據庫
+async function saveComicToDatabase(prompt: string, style: ComicStyle, panelCount: number, scripts: PanelScript[], images: string[]): Promise<void> {
+  try {
+    // 1. 首先在 comics 表中創建基本記錄
+    const { data: comicData, error: comicError } = await supabase
+      .from('comics')
+      .insert([
+        {
+          user_prompt: prompt,
+          style: style,
+          panel_count: panelCount
+        }
+      ])
+      .select()
+      .single();
+
+    if (comicError) {
+      console.error('創建漫畫記錄失敗:', comicError);
+      throw comicError;
+    }
+
+    const comicId = comicData.id;
+    console.log(`✅ 創建漫畫記錄成功, ID: ${comicId}`);
+
+    // 2. 並行上傳所有圖片到 Storage
+    console.log(`📤 開始並行上傳 ${images.length} 張圖片到 Storage...`);
+    const uploadPromises = images.map(async (image, index) => {
+      const panelNumber = index + 1;
+      try {
+        const imageUrl = await uploadImageToStorage(image, comicId, panelNumber);
+        return { panelNumber, imageUrl, success: true };
+      } catch (error) {
+        console.error(`上傳分鏡 ${panelNumber} 失敗:`, error);
+        return { panelNumber, error: error instanceof Error ? error.message : String(error), success: false };
+      }
+    });
+
+    const uploadResults = await Promise.all(uploadPromises);
+
+    // 檢查是否有上傳失敗的圖片
+    const failedUploads = uploadResults.filter(result => !result.success);
+    if (failedUploads.length > 0) {
+      throw new Error(`圖片上傳失敗: ${failedUploads.map(r => `分鏡${r.panelNumber}`).join(', ')}`);
+    }
+
+    // 3. 創建分鏡記錄
+    const panelRecords = scripts.map((script, index) => {
+      const uploadResult = uploadResults.find(r => r.success && r.panelNumber === script.panelNumber);
+      if (!uploadResult || !uploadResult.success) {
+        throw new Error(`找不到分鏡 ${script.panelNumber} 的圖片上傳結果`);
+      }
+
+      return {
+        comic_id: comicId,
+        panel_number: script.panelNumber,
+        script_text: script.description,
+        script_description: script.dialogue || null,
+        image_url: uploadResult.imageUrl,
+        image_prompt: script.mood
+      };
+    });
+
+    const { error: panelsError } = await supabase
+      .from('comic_panels')
+      .insert(panelRecords);
+
+    if (panelsError) {
+      console.error('創建分鏡記錄失敗:', panelsError);
+      throw panelsError;
+    }
+
+    console.log(`✅ 成功存儲漫畫到數據庫，包含 ${panelRecords.length} 個分鏡`);
+
+  } catch (error) {
+    console.error('存儲漫畫到數據庫失敗:', error);
+    throw error;
+  }
+}
 
 
 export async function POST(request: NextRequest) {
@@ -294,7 +409,7 @@ export async function POST(request: NextRequest) {
 
     // 第一步：生成分鏡腳本
     const scripts = await generatePanelScripts(prompt, panelCount, style);
-    
+
     console.log(`🚀 開始並行生成 ${scripts.length} 張圖片...`);
 
     // 第二步：並行生成所有圖片
@@ -325,7 +440,7 @@ export async function POST(request: NextRequest) {
       });
 
       const results = await Promise.all(imagePromises);
-      
+
       // 檢查是否有任何失敗的圖片生成
       const failedResults = results.filter(result => !result.success);
       if (failedResults.length > 0) {
@@ -344,23 +459,22 @@ export async function POST(request: NextRequest) {
 
       console.log(`🎉 並行漫畫創作完成！總共生成 ${images.length} 張圖片`);
 
+      // 第三步：存儲到數據庫
+      try {
+        console.log(`💾 開始存儲漫畫到數據庫...`);
+        await saveComicToDatabase(prompt, style, panelCount, scripts, images);
+        console.log(`✅ 漫畫已成功存儲到數據庫`);
+      } catch (storageError) {
+        console.error('存儲漫畫到數據庫失敗:', storageError);
+        // 不阻塞用戶響應，但記錄錯誤
+        // 用戶仍然可以看到生成的漫畫，只是沒有保存到畫廊
+      }
+
       const response: GenerateComicResponse = {
         images,
         scripts,
         message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本 (優化並行處理)`
       };
-
-      // Save to Supabase
-      const { error: supabaseError } = await supabase
-        .from('comics')
-        .insert([
-          { prompt, style, images, scripts },
-        ]);
-
-      if (supabaseError) {
-        console.error('Error saving to Supabase:', supabaseError);
-        // Don't block the response to the user, just log the error
-      }
 
       return NextResponse.json(response);
 
@@ -371,9 +485,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("❌ 創作漫畫時發生錯誤:", error instanceof Error ? error.message : error);
-    
+
     const errorMessage = error instanceof Error ? error.message : "未知錯誤";
-    
+
     return NextResponse.json(
       { error: `創作失敗: ${errorMessage}` },
       { status: 500 }
