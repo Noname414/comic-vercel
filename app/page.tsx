@@ -13,6 +13,10 @@ export default function Home() {
       <div className="relative z-10 container mx-auto py-12 px-4">
         {/* 網站標題區域 */}
         <header className="text-center mb-16">
+          <nav className="flex justify-center gap-8 mb-8">
+            <a href="/" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Home</a>
+            <a href="/gallery" className="text-lg font-semibold text-gray-700 hover:text-purple-600">Gallery</a>
+          </nav>
           <div className="inline-block mb-6">
             <div className="relative">
               <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 mb-4 leading-tight">

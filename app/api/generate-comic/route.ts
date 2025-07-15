@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { GenerateComicRequest, GenerateComicResponse, ComicStyle, PanelScript } from "@/types/comic";
+import { supabase } from '@/lib/supabaseClient';
 
 // 初始化 Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
@@ -348,6 +349,18 @@ export async function POST(request: NextRequest) {
         scripts,
         message: `成功創作 ${panelCount} 格漫畫，包含完整分鏡腳本 (優化並行處理)`
       };
+
+      // Save to Supabase
+      const { error: supabaseError } = await supabase
+        .from('comics')
+        .insert([
+          { prompt, style, images, scripts },
+        ]);
+
+      if (supabaseError) {
+        console.error('Error saving to Supabase:', supabaseError);
+        // Don't block the response to the user, just log the error
+      }
 
       return NextResponse.json(response);
 
