@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useComics } from '@/lib/hooks/useComics';
@@ -30,7 +30,6 @@ interface Comic {
 
 export default function ComicDetailPage() {
     const params = useParams();
-    const router = useRouter();
     const { getComicById, loading, error, isValidImageUrl } = useComics();
     const [comic, setComic] = useState<Comic | null>(null);
     const [localLoading, setLocalLoading] = useState(true);
@@ -234,7 +233,7 @@ export default function ComicDetailPage() {
                                                 對話內容
                                             </h3>
                                             <p className="text-blue-700 leading-relaxed text-base font-medium">
-                                                "{panel.script_description}"
+                                                &ldquo;{panel.script_description}&rdquo;
                                             </p>
                                         </div>
                                     )}

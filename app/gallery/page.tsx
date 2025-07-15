@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useComics } from '@/lib/hooks/useComics';
@@ -13,12 +13,11 @@ export default function Gallery() {
     error,
     stats,
     refreshComics,
-    clearCache,
     isValidImageUrl,
     hasCache
   } = useComics();
 
-  const getStyleDisplayName = (style: ComicStyle): string => {
+  const getStyleDisplayName = useCallback((style: ComicStyle): string => {
     const styleMap: Record<ComicStyle, string> = {
       manga: '少年漫畫',
       webtoon: '韓式漫畫',
@@ -28,7 +27,7 @@ export default function Gallery() {
       watercolor: '水彩風格'
     };
     return styleMap[style] || style;
-  };
+  }, []);
 
   // 使用 useMemo 優化渲染性能
   const comicCards = useMemo(() => {
@@ -205,7 +204,7 @@ export default function Gallery() {
           <div className="text-center">
             <div className="bg-gray-100 border border-gray-300 text-gray-700 px-4 py-3 rounded mb-4">
               <p className="text-lg">目前還沒有漫畫作品。</p>
-              <p className="text-sm mt-2">趕快去<a href="/" className="text-blue-600 hover:text-blue-800 underline">創作您的第一個漫畫</a>吧！</p>
+              <p className="text-sm mt-2">趕快去<Link href="/" className="text-blue-600 hover:text-blue-800 underline">創作您的第一個漫畫</Link>吧！</p>
             </div>
           </div>
         )}

@@ -269,7 +269,7 @@ async function uploadImageToStorage(base64Image: string, comicId: number, panelN
     const filePath = `panels/${fileName}`;
 
     // 上傳到 Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('comic-images')
       .upload(filePath, buffer, {
         contentType: 'image/png',
@@ -341,7 +341,7 @@ async function saveComicToDatabase(prompt: string, style: ComicStyle, panelCount
     }
 
     // 3. 創建分鏡記錄
-    const panelRecords = scripts.map((script, index) => {
+    const panelRecords = scripts.map((script) => {
       const uploadResult = uploadResults.find(r => r.success && r.panelNumber === script.panelNumber);
       if (!uploadResult || !uploadResult.success) {
         throw new Error(`找不到分鏡 ${script.panelNumber} 的圖片上傳結果`);
